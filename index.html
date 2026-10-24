@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>拼豆图纸生成器 · MARD 221 色卡 (带图例版)</title>
+<style>
+  :root{
+    --bg:#f5f6f8; --card:#fff; --line:#e4e7ec; --text:#1d2330; --muted:#727c8d;
+    --accent:#4f6ef7; --accent2:#3b56d6; --radius:12px;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--text);
+    font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    font-size:14px;
+  }
+  .app{display:flex;min-height:100vh}
+  aside{
+    width:330px;flex:0 0 330px;background:#fff;border-right:1px solid var(--line);
+    padding:18px;overflow-y:auto;height:100vh;position:sticky;top:0;
+  }
+  aside h1{font-size:16px;margin:0 0 4px;letter-spacing:.3px}
+  aside .sub{color:var(--muted);font-size:12px;margin-bottom:16px}
+  .field{margin-bottom:16px}
+  .field > label{display:block;font-size:12.5px;font-weight:600;color:#39414f;margin-bottom:7px}
+  .field .hint{font-size:11.5px;color:var(--muted);margin-top:5px;line-height:1.5}
+  .drop{
+    border:1.5px dashed #c9d0dc;border-radius:var(--radius);padding:20px 12px;text-align:center;
+    cursor:pointer;transition:.18s;background:#fafbfd;color:var(--muted);font-size:12.5px;line-height:1.7;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);background:#f0f4ff;color:var(--accent)}
+  .drop b{display:block;font-size:13px;color:var(--text);margin-bottom:2px}
+  .row{display:flex;gap:8px;align-items:center}
+  input[type=number], select{
+    width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;font-size:13px;
+    background:#fff;color:var(--text);outline:none;font-family:inherit;
+  }
+  input[type=number]:focus, select:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(79,110,247,.13)}
+  .chips{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+  .chips button{
+    flex:1;min-width:52px;padding:6px 4px;border:1px solid var(--line);background:#fff;border-radius:8px;
+    font-size:12px;color:#4a5466;cursor:pointer;transition:.15s;font-family:inherit;
+  }
+  .chips button:hover{border-color:var(--accent);color:var(--accent)}
+  .chips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  .check{display:flex;align-items:center;gap:8px;font-size:13px;color:#39414f;cursor:pointer;padding:5px 0}
+  .check input{width:15px;height:15px;accent-color:var(--accent);cursor:pointer}
+  .btn{
+    display:block;width:100%;padding:10px;border:none;border-radius:9px;font-size:13.5px;font-weight:600;
+    cursor:pointer;font-family:inherit;transition:.16s;margin-top:8px;
+  }
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{background:var(--accent2)}
+  .btn-primary:disabled{background:#c3cbe0;cursor:not-allowed}
+  .btn-ghost{background:#f1f3f7;color:#39414f}
+  .btn-ghost:hover{background:#e6e9f0}
+  main{flex:1;padding:20px;min-width:0;display:flex;flex-direction:column;gap:16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:16px}
+  .card h2{font-size:13px;margin:0 0 12px;color:#39414f;font-weight:700;letter-spacing:.4px;
+           display:flex;align-items:center;gap:8px}
+  .card h2::before{content:'';width:3px;height:13px;border-radius:2px;background:var(--accent)}
+  .card h2 .badge{font-weight:500;font-size:11.5px;color:var(--muted);background:#f1f3f7;
+                  padding:2px 8px;border-radius:20px;letter-spacing:0}
+  .canvas-wrap{overflow:auto;max-width:100%;border-radius:8px}
+  #preview{
+    display:block;image-rendering:pixelated;image-rendering:crisp-edges;
+    background:repeating-conic-gradient(#f0f2f5 0 25%, #fff 0 50%) 0 0/16px 16px;
+    border-radius:6px;border:1px solid var(--line);
+  }
+  #chart{display:block;border-radius:6px;background:#fff}
+  .empty{padding:48px 16px;text-align:center;color:var(--muted);font-size:13px;line-height:1.9}
+  .empty .ico{font-size:32px;display:block;margin-bottom:8px;opacity:.45}
+  @media (max-width:880px){
+    .app{flex-direction:column}
+    aside{width:auto;flex:none;height:auto;position:static;border-right:none;border-bottom:1px solid var(--line)}
+    main{padding:14px}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <h1>🧩 拼豆图纸生成器</h1>
+    <div class="sub">带底部图例 · 支持 MARD 221 色号</div>
+
+    <div class="field">
+      <label>1. 选择照片</label>
+      <div class="drop" id="drop">
+        <b>点击 / 拖拽 / 粘贴图片</b>
+        支持 JPG、PNG、WebP
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+    </div>
+
+    <div class="field">
+      <label>2. 图纸尺寸（豆子数）</label>
+      <div class="row">
+        <input type="number" id="colsInput" value="52" min="2" max="200" title="宽（颗）">
+        <span style="color:var(--muted)">×</span>
+        <input type="number" id="rowsInput" value="52" min="2" max="200" title="高（颗）">
+      </div>
+      <div class="chips" id="sizeChips">
+        <button data-size="32">32</button>
+        <button data-size="52">52</button>
+        <button data-size="78">78</button>
+        <button data-size="104">104</button>
+      </div>
+      <label class="check" style="margin-top:8px">
+        <input type="checkbox" id="lockRatio" checked> 锁定原图宽高比
+      </label>
+    </div>
+
+    <div class="field">
+      <label>3. 配色方案</label>
+      <select id="mode">
+        <option value="palette">MARD 221 标准色卡（推荐）</option>
+        <option value="adaptive">自适应取色（还原更准）</option>
+      </select>
+      <div class="row" style="margin-top:8px">
+        <span style="font-size:12.5px;color:#4a5466;white-space:nowrap">最多颜色数</span>
+        <input type="number" id="maxColors" value="16" min="2" max="221">
+      </div>
+      <div class="hint">颜色越多还原度越高，但实际拼豆难度也会增加。色卡模式下最大支持 221 色。</div>
+    </div>
+
+    <div class="field">
+      <label>4. 细节与网格</label>
+      <label class="check"><input type="checkbox" id="dither"> 抖动（Floyd–Steinberg）</label>
+      <label class="check"><input type="checkbox" id="showNumbers" checked> 格子内显示色号</label>
+      
+      <div class="row" style="margin-top:8px">
+        <span style="font-size:12.5px;color:#4a5466;white-space:nowrap">加粗网格线</span>
+        <select id="boldGrid">
+          <option value="0">无</option>
+          <option value="5">每 5 格</option>
+          <option value="10" selected>每 10 格</option>
+        </select>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <span style="font-size:12.5px;color:#4a5466;white-space:nowrap">透明区域</span>
+        <select id="transparent">
+          <option value="empty">留空（不拼）</option>
+          <option value="white">填充白色</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label>5. 导出图纸</label>
+      <button class="btn btn-primary" id="dlPng" disabled>下载图纸 PNG（含图例）</button>
+      <button class="btn btn-ghost" id="dlCsv" disabled>导出颜色清单 CSV</button>
+    </div>
+  </aside>
+
+  <main>
+    <div class="card">
+      <h2>效果预览 <span class="badge" id="previewBadge">—</span></h2>
+      <div class="canvas-wrap" id="previewWrap">
+        <div class="empty" id="previewEmpty">
+          <span class="ico">🖼️</span>上传照片后显示拼豆像素效果
+        </div>
+        <canvas id="preview" style="display:none"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>拼豆图纸 <span class="badge" id="chartBadge">—</span></h2>
+      <div class="canvas-wrap" id="chartWrap">
+        <div class="empty" id="chartEmpty">
+          <span class="ico">📐</span>图纸生成区，底部自动带图例与统计
+        </div>
+        <canvas id="chart" style="display:none"></canvas>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+/* ===================== 工具与色彩转换 ===================== */
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+function hexToRgb(h){ h=h.replace('#',''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+function rgbToHex([r,g,b]){ return '#'+[r,g,b].map(v=>clamp(Math.round(v),0,255).toString(16).padStart(2,'0')).join('').toUpperCase(); }
+function srgbToLinear(c){ c/=255; return c<=0.04045?c/12.92:Math.pow((c+0.055)/1.055,2.4); }
+function rgbToLab(r,g,b){
+  const R=srgbToLinear(r),G=srgbToLinear(g),B=srgbToLinear(b);
+  const X=(R*0.4124564+G*0.3575761+B*0.1804375)/0.95047;
+  const Y=(R*0.2126729+G*0.7151522+B*0.0721750);
+  const Z=(R*0.0193339+G*0.1191920+B*0.9503041)/1.08883;
+  const f=t=>t>0.008856?Math.cbrt(t):(7.787*t+16/116);
+  const fx=f(X),fy=f(Y),fz=f(Z);
+  return [116*fy-16,500*(fx-fy),200*(fy-fz)];
+}
+function labToRgb(L,a,bb){
+  const fy=(L+16)/116,fx=fy+a/500,fz=fy-bb/200;
+  const finv=t=>{const t3=t*t*t;return t3>0.008856?t3:(t-16/116)/7.787;};
+  const X=finv(fx)*0.95047,Y=finv(fy),Z=finv(fz)*1.08883;
+  const R=X*3.2404542+Y*-1.5371385+Z*-0.4985314;
+  const G=X*-0.9692660+Y*1.8760108+Z*0.0415560;
+  const B=X*0.0556434+Y*-0.2040259+Z*1.0572252;
+  const g=c=>{c=c<=0.0031308?12.92*c:1.055*Math.pow(Math.max(c,0),1/2.4)-0.055;return Math.round(clamp(c,0,1)*255);};
+  return [g(R),g(G),g(B)];
+}
+const dist2=(p,q)=>{const a=p[0]-q[0],b=p[1]-q[1],c=p[2]-q[2];return a*a+b*b+c*c;};
+let _seed=20240607;
+function rand(){_seed=(_seed*1103515245+12345)&0x7fffffff;return _seed/0x7fffffff;}
+
+/* ===================== MARD 221 色卡 ===================== */
+const MARD_RAW = [
+  ['A1','#FAF5CD'],['A2','#FCFED6'],['A3','#FCFF92'],['A4','#F7EC5C'],['A5','#F0D83A'],['A6','#FDA951'],['A7','#FA8C4F'],['A8','#FBDA4D'],['A9','#F79D5F'],['A10','#F47E38'],['A11','#FEDB99'],['A12','#FDA276'],['A13','#FEC667'],['A14','#F75842'],['A15','#FBF65E'],['A16','#FEFF97'],['A17','#FDE173'],['A18','#FCBF80'],['A19','#FD7E77'],['A20','#F9D666'],['A21','#FAE393'],['A22','#EDF878'],['A23','#E4C8BA'],['A24','#F3F6A9'],['A25','#FDF785'],['A26','#FFC734'],
+  ['B1','#DFF13B'],['B2','#64F343'],['B3','#A1F586'],['B4','#5FDF34'],['B5','#39E158'],['B6','#64E0A4'],['B7','#3EAE7C'],['B8','#1D9B54'],['B9','#2A5037'],['B10','#9AD1BA'],['B11','#627032'],['B12','#1A6E3D'],['B13','#C8E87D'],['B14','#ABE84F'],['B15','#305335'],['B16','#C0ED9C'],['B17','#9EB33E'],['B18','#E6ED4F'],['B19','#26B78E'],['B20','#CBECCF'],['B21','#18616A'],['B22','#0A4241'],['B23','#343B1A'],['B24','#E8FAA6'],['B25','#4E846D'],['B26','#907C35'],['B27','#D0E0AF'],['B28','#9EE5BB'],['B29','#C6DF5F'],['B30','#E3FBB1'],['B31','#B4E691'],['B32','#92AD60'],
+  ['C1','#F0FEE4'],['C2','#ABF8FE'],['C3','#A2E0F7'],['C4','#44CDFB'],['C5','#06AADF'],['C6','#54A7E9'],['C7','#3977CA'],['C8','#0F52BD'],['C9','#3349C3'],['C10','#3CBCE3'],['C11','#2ADED3'],['C12','#1E334E'],['C13','#CDE7FE'],['C14','#D5FCF7'],['C15','#21C5C4'],['C16','#1858A2'],['C17','#02D1F3'],['C18','#213244'],['C19','#18869D'],['C20','#1A70A9'],['C21','#BCDDFC'],['C22','#6BB1BB'],['C23','#C8E2FD'],['C24','#7EC5F9'],['C25','#A9E8E0'],['C26','#42ADCF'],['C27','#D0DEF9'],['C28','#BDCEE8'],['C29','#364A89'],
+  ['D1','#ACB7EF'],['D2','#868DD3'],['D3','#3554AF'],['D4','#162D7B'],['D5','#B34EC6'],['D6','#B37BDC'],['D7','#8758A9'],['D8','#E3D2FE'],['D9','#D5B9F4'],['D10','#301A49'],['D11','#BEB9E2'],['D12','#DC99CE'],['D13','#B5038D'],['D14','#862993'],['D15','#2F1F8C'],['D16','#E2E4F0'],['D17','#C7D3F9'],['D18','#9A64B8'],['D19','#D8C2D9'],['D20','#9A35AD'],['D21','#940595'],['D22','#38389A'],['D23','#EADBF8'],['D24','#768AE1'],['D25','#4950C2'],['D26','#D6C6EB'],
+  ['E1','#F6D4CB'],['E2','#FCC1DD'],['E3','#F6BDE8'],['E4','#E8649E'],['E5','#F0569F'],['E6','#EB4172'],['E7','#C53674'],['E8','#FDDBE9'],['E9','#E376C7'],['E10','#D13B95'],['E11','#F7DAD4'],['E12','#F693BF'],['E13','#B5026A'],['E14','#FAD4BF'],['E15','#F5C9CA'],['E16','#FBF4EC'],['E17','#F7E3EC'],['E18','#F9C8DB'],['E19','#F6BBD1'],['E20','#D7C6CE'],['E21','#C09DA4'],['E22','#B38C9F'],['E23','#937D8A'],['E24','#DEBEE5'],
+  ['F1','#FE9381'],['F2','#F63D4B'],['F3','#EE4E3E'],['F4','#FB2A40'],['F5','#E10328'],['F6','#913635'],['F7','#911932'],['F8','#BB0126'],['F9','#E0677A'],['F10','#874628'],['F11','#592323'],['F12','#F3536B'],['F13','#F45C45'],['F14','#FCADB2'],['F15','#D50527'],['F16','#F8C0A9'],['F17','#E89B7D'],['F18','#D07F4A'],['F19','#BE454A'],['F20','#C69495'],['F21','#F2B8C6'],['F22','#F7C3D0'],['F23','#ED806C'],['F24','#E09DAF'],['F25','#E84854'],
+  ['G1','#FFE4D3'],['G2','#FCC6AC'],['G3','#F1C4A5'],['G4','#DCB387'],['G5','#E7B34E'],['G6','#E3A014'],['G7','#985C3A'],['G8','#713D2F'],['G9','#E4B685'],['G10','#DA8C42'],['G11','#DAC898'],['G12','#FEC993'],['G13','#B2714B'],['G14','#8B684C'],['G15','#F6F8E3'],['G16','#F2D8C1'],['G17','#77544E'],['G18','#FFE3D5'],['G19','#DD7D41'],['G20','#A5452F'],['G21','#B38561'],
+  ['H1','#FFFFFF'],['H2','#FBFBFB'],['H3','#B4B4B4'],['H4','#878787'],['H5','#464648'],['H6','#2C2C2C'],['H7','#010101'],['H8','#E7D6DC'],['H9','#EFEDEE'],['H10','#EBEBEB'],['H11','#CDCDCD'],['H12','#FDF6EE'],['H13','#F4EDF1'],
+];
+const MARD = MARD_RAW.map(([code,hex])=>{
+  const rgb=hexToRgb(hex);
+  return {code, name:code, hex, rgb, lab:rgbToLab(rgb[0],rgb[1],rgb[2])};
+});
+
+/* ===================== 全局状态 ===================== */
+const state = {
+  img:null, cols:52, rows:52, lockRatio:true,
+  mode:'palette', maxColors:16, dither:false,
+  showNumbers:true, transparent:'empty', boldGrid:10,
+};
+let result=null;
+
+const $=id=>document.getElementById(id);
+const previewCanvas=$('preview'), chartCanvas=$('chart');
+const previewWrap=$('previewWrap'), previewEmpty=$('previewEmpty'), chartEmpty=$('chartEmpty');
+
+/* ===================== 图片读取 ===================== */
+const drop=$('drop'), fileInput=$('file');
+drop.addEventListener('click',()=>fileInput.click());
+fileInput.addEventListener('change',e=>{if(e.target.files[0])readFile(e.target.files[0]);});
+['dragenter','dragover'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over');}));
+['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over');}));
+drop.addEventListener('drop',e=>{const f=e.dataTransfer.files[0];if(f)readFile(f);});
+document.addEventListener('paste',e=>{
+  for(const item of e.clipboardData?.items||[]){
+    if(item.type.startsWith('image/')){readFile(item.getAsFile());break;}
+  }
+});
+
+function readFile(file){
+  if(!file||!file.type.startsWith('image/'))return;
+  const url=URL.createObjectURL(file);
+  const img=new Image();
+  img.onload=()=>{
+    state.img=img; URL.revokeObjectURL(url);
+    const base=52;
+    let c,r;
+    if(img.naturalWidth>=img.naturalHeight){ c=base; r=Math.round(base*img.naturalHeight/img.naturalWidth); }
+    else { r=base; c=Math.round(base*img.naturalWidth/img.naturalHeight); }
+    c=clamp(c,2,200); r=clamp(r,2,200);
+    state.cols=c; state.rows=r;
+    $('colsInput').value=c; $('rowsInput').value=r;
+    process();
+  };
+  img.onerror=()=>alert('图片加载失败，请换一张试试');
+  img.src=url;
+}
+
+/* ===================== 采样与量化 ===================== */
+function sampleImage(img,cols,rows){
+  let w=img.naturalWidth,h=img.naturalHeight;
+  let cur=document.createElement('canvas'); cur.width=w; cur.height=h;
+  cur.getContext('2d').drawImage(img,0,0);
+  while(w>cols*2&&h>rows*2){
+    const nw=Math.max(cols,Math.floor(w/2)), nh=Math.max(rows,Math.floor(h/2));
+    const nc=document.createElement('canvas'); nc.width=nw; nc.height=nh;
+    const c2=nc.getContext('2d'); c2.imageSmoothingEnabled=true; c2.imageSmoothingQuality='high';
+    c2.drawImage(cur,0,0,w,h,0,0,nw,nh);
+    cur=nc; w=nw; h=nh;
+  }
+  const fc=document.createElement('canvas'); fc.width=cols; fc.height=rows;
+  const fx=fc.getContext('2d'); fx.imageSmoothingEnabled=true; fx.imageSmoothingQuality='high';
+  fx.drawImage(cur,0,0,w,h,0,0,cols,rows);
+  return fx.getImageData(0,0,cols,rows);
+}
+
+function kmeansWeighted(labs,weights,k,iters=14){
+  const n=labs.length;
+  if(k>=n)return labs.map(p=>p.slice());
+  const centers=[labs[Math.floor(rand()*n)].slice()];
+  const d2=new Array(n).fill(Infinity);
+  for(let c=1;c<k;c++){
+    let total=0;
+    for(let i=0;i<n;i++){const dd=dist2(labs[i],centers[c-1]);if(dd<d2[i])d2[i]=dd;total+=d2[i]*weights[i];}
+    let target=rand()*total,pick=n-1;
+    for(let i=0;i<n;i++){target-=d2[i]*weights[i];if(target<=0){pick=i;break;}}
+    centers.push(labs[pick].slice());
+  }
+  const assign=new Int32Array(n).fill(-1);
+  for(let it=0;it<iters;it++){
+    let changed=false;
+    for(let i=0;i<n;i++){
+      let bi=0,bd=Infinity;
+      for(let c=0;c<k;c++){const dd=dist2(labs[i],centers[c]);if(dd<bd){bd=dd;bi=c;}}
+      if(assign[i]!==bi){assign[i]=bi;changed=true;}
+    }
+    const sums=Array.from({length:k},()=>[0,0,0,0]);
+    for(let i=0;i<n;i++){const c=assign[i],w=weights[i],p=labs[i];sums[c][0]+=p[0]*w;sums[c][1]+=p[1]*w;sums[c][2]+=p[2]*w;sums[c][3]+=w;}
+    for(let c=0;c<k;c++){if(sums[c][3]>0){centers[c]=[sums[c][0]/sums[c][3],sums[c][1]/sums[c][3],sums[c][2]/sums[c][3]];}}
+    if(!changed&&it>0)break;
+  }
+  return centers;
+}
+
+function buildAdaptivePalette(px,k){
+  const uniq=new Map();
+  for(const p of px){if(!p)continue;const key=(p[0]<<16)|(p[1]<<8)|p[2];uniq.set(key,(uniq.get(key)||0)+1);}
+  const entries=[...uniq.entries()].sort((a,b)=>b[1]-a[1]);
+  const labs=entries.map(([key])=>rgbToLab((key>>16)&255,(key>>8)&255,key&255));
+  const weights=entries.map(e=>e[1]);
+  const centers=kmeansWeighted(labs,weights,Math.min(k,labs.length));
+  return centers.map((lab,i)=>{
+    const rgb=labToRgb(lab[0],lab[1],lab[2]);
+    return {code:'C'+(i+1),name:'自定义色 '+(i+1),hex:rgbToHex(rgb),rgb,lab};
+  });
+}
+
+function quantize(px,cols,rows,palette,dither){
+  const n=cols*rows;
+  const out=new Int16Array(n).fill(-1), valid=new Uint8Array(n), buf=new Float32Array(n*3);
+  for(let i=0;i<n;i++){if(px[i]){valid[i]=1;buf[i*3]=px[i][0];buf[i*3+1]=px[i][1];buf[i*3+2]=px[i][2];}}
+  const plabs=palette.map(p=>p.lab), K=palette.length;
+  const SPREAD=[[1,0,7/16],[-1,1,3/16],[0,1,5/16],[1,1,1/16]];
+  for(let y=0;y<rows;y++){
+    for(let x=0;x<cols;x++){
+      const i=y*cols+x; if(!valid[i])continue;
+      const r=clamp(buf[i*3],0,255), g=clamp(buf[i*3+1],0,255), b=clamp(buf[i*3+2],0,255);
+      const lab=rgbToLab(r,g,b);
+      let bi=0,bd=Infinity;
+      for(let k=0;k<K;k++){const p=plabs[k];const d0=lab[0]-p[0],d1=lab[1]-p[1],d2=lab[2]-p[2];const dd=d0*d0+d1*d1+d2*d2;if(dd<bd){bd=dd;bi=k;}}
+      out[i]=bi;
+      if(dither){
+        const pr=palette[bi].rgb;
+        const er=r-pr[0],eg=g-pr[1],eb=b-pr[2];
+        for(const[dx,dy,w]of SPREAD){
+          const nx=x+dx,ny=y+dy; if(nx<0||nx>=cols||ny>=rows)continue;
+          const ni=ny*cols+nx; if(!valid[ni])continue;
+          buf[ni*3]+=er*w; buf[ni*3+1]+=eg*w; buf[ni*3+2]+=eb*w;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+function limitToTopColors(cells,palette,k){
+  const counts=new Map();
+  for(const c of cells)if(c>=0)counts.set(c,(counts.get(c)||0)+1);
+  if(counts.size<=k)return cells;
+  const keep=[...counts.entries()].sort((a,b)=>b[1]-a[1]).slice(0,k).map(e=>e[0]);
+  const keepSet=new Set(keep), keepLabs=keep.map(i=>palette[i].lab);
+  const map=new Map();
+  for(const idx of counts.keys()){
+    if(keepSet.has(idx)){map.set(idx,idx);continue;}
+    const lab=palette[idx].lab; let bi=0,bd=Infinity;
+    for(let i=0;i<keep.length;i++){const dd=dist2(lab,keepLabs[i]);if(dd<bd){bd=dd;bi=i;}}
+    map.set(idx,keep[bi]);
+  }
+  const out=new Int16Array(cells.length).fill(-1);
+  for(let i=0;i<cells.length;i++)out[i]=cells[i]>=0?map.get(cells[i]):-1;
+  return out;
+}
+
+/* ===================== 主处理 ===================== */
+function process(){
+  if(!state.img)return;
+  const cols=clamp(state.cols|0,2,200), rows=clamp(state.rows|0,2,200), n=cols*rows;
+  const imgData=sampleImage(state.img,cols,rows), d=imgData.data;
+  const px=new Array(n).fill(null);
+  for(let i=0;i<n;i++){
+    const a=d[i*4+3];
+    if(a<40){if(state.transparent==='white')px[i]=[255,255,255];continue;}
+    let r=d[i*4],g=d[i*4+1],b=d[i*4+2];
+    if(a<255){const t=a/255;r=Math.round(r*t+255*(1-t));g=Math.round(g*t+255*(1-t));b=Math.round(b*t+255*(1-t));}
+    px[i]=[r,g,b];
+  }
+  let palette;
+  if(state.mode==='adaptive'){
+    const uniqCount=new Set(px.filter(Boolean).map(p=>(p[0]<<16)|(p[1]<<8)|p[2])).size;
+    const k=clamp(state.maxColors|0,2,Math.max(2,uniqCount));
+    palette=buildAdaptivePalette(px,k);
+  }else{
+    palette=MARD;
+  }
+  let cells=quantize(px,cols,rows,palette,state.dither);
+  if(state.mode==='palette'&&state.maxColors<palette.length){
+    cells=limitToTopColors(cells,palette,state.maxColors|0);
+  }
+  const counts=new Map();
+  for(const c of cells)if(c>=0)counts.set(c,(counts.get(c)||0)+1);
+  const sorted=[...counts.entries()].sort((a,b)=>b[1]-a[1]);
+  const colors=[], remap=new Map();
+  sorted.forEach(([oldIdx,cnt],i)=>{
+    const p=palette[oldIdx];
+    colors.push({...p,count:cnt,num:i+1});
+    remap.set(oldIdx,i);
+  });
+  const out=new Int16Array(n).fill(-1);
+  for(let i=0;i<n;i++)out[i]=cells[i]>=0?remap.get(cells[i]):-1;
+  result={cols,rows,cells:out,colors};
+  renderPreview(); renderChart();
+  $('dlPng').disabled=false; $('dlCsv').disabled=false;
+  $('previewBadge').textContent=`${cols} × ${rows} 颗`;
+  $('chartBadge').textContent=`${colors.length} 种颜色 · 共 ${n} 格`;
+}
+
+/* ===================== 渲染预览 ===================== */
+function renderPreview(){
+  const{cols,rows,cells,colors}=result;
+  const tmp=document.createElement('canvas'); tmp.width=cols; tmp.height=rows;
+  const tctx=tmp.getContext('2d'), idata=tctx.createImageData(cols,rows);
+  for(let i=0;i<cols*rows;i++){
+    const ci=cells[i]; if(ci<0)continue;
+    const[r,g,b]=colors[ci].rgb;
+    idata.data[i*4]=r; idata.data[i*4+1]=g; idata.data[i*4+2]=b; idata.data[i*4+3]=255;
+  }
+  tctx.putImageData(idata,0,0);
+  previewCanvas.width=cols; previewCanvas.height=rows;
+  const pctx=previewCanvas.getContext('2d'); pctx.imageSmoothingEnabled=false;
+  pctx.clearRect(0,0,cols,rows); pctx.drawImage(tmp,0,0);
+  const maxW=Math.min(600,(previewWrap.clientWidth||600)-4), maxH=420;
+  const s=Math.max(1,Math.min(maxW/cols,maxH/rows));
+  previewCanvas.style.width=Math.round(cols*s)+'px';
+  previewCanvas.style.height=Math.round(rows*s)+'px';
+  previewCanvas.style.display='block'; previewEmpty.style.display='none';
+}
+
+/* ===================== 渲染图纸 (含底部图例) ===================== */
+function renderChart(){
+  const{cols,rows,cells,colors}=result;
+  
+  const cellSize = Math.max(16, Math.floor(1200 / Math.max(cols, rows))); 
+  const pad = 20;
+  const chartW = cols * cellSize + pad * 2;
+  
+  const legendItemW = 110; 
+  const legendItemH = 26;  
+  const legendCols = Math.max(1, Math.floor((chartW - pad*2) / legendItemW));
+  const legendRows = Math.ceil(colors.length / legendCols);
+  const legendHeight = legendRows * legendItemH + 80; 
+  
+  const chartH = rows * cellSize + pad * 2;
+  const totalW = chartW;
+  const totalH = chartH + legendHeight;
+  
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  chartCanvas.width = Math.round(totalW * dpr); 
+  chartCanvas.height = Math.round(totalH * dpr);
+  chartCanvas.style.width = totalW + 'px'; 
+  chartCanvas.style.height = totalH + 'px';
+  
+  const ctx = chartCanvas.getContext('2d'); 
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#ffffff'; 
+  ctx.fillRect(0, 0, totalW, totalH); 
+  
+  ctx.save();
+  ctx.translate(pad, pad);
+  
+  ctx.fillStyle = '#f1f3f6';
+  for (let y = 0; y < rows; y++)
+    for (let x = 0; x < cols; x++)
+      if (cells[y * cols + x] < 0) 
+        ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+  
+  for (let y = 0; y < rows; y++)
+    for (let x = 0; x < cols; x++) {
+      const ci = cells[y * cols + x];
+      if (ci < 0) continue;
+      ctx.fillStyle = colors[ci].hex;
+      ctx.fillRect(x * cellSize, y * cellSize, cellSize, cellSize);
+    }
+  
+  ctx.strokeStyle = 'rgba(0,0,0,0.15)'; 
+  ctx.lineWidth = 1; 
+  ctx.beginPath();
+  for (let x = 0; x <= cols; x++) { 
+    const px = Math.round(x * cellSize) + 0.5; 
+    ctx.moveTo(px, 0); 
+    ctx.lineTo(px, rows * cellSize); 
+  }
+  for (let y = 0; y <= rows; y++) { 
+    const py = Math.round(y * cellSize) + 0.5; 
+    ctx.moveTo(0, py); 
+    ctx.lineTo(cols * cellSize, py); 
+  }
+  ctx.stroke();
+  
+  if (state.boldGrid > 0) {
+    ctx.strokeStyle = 'rgba(200, 30, 30, 0.7)';
+    ctx.lineWidth = 2; 
+    ctx.beginPath();
+    for (let x = state.boldGrid; x < cols; x += state.boldGrid) {
+      const px = Math.round(x * cellSize) + 0.5;
+      ctx.moveTo(px, 0); ctx.lineTo(px, rows * cellSize);
+    }
+    for (let y = state.boldGrid; y < rows; y += state.boldGrid) {
+      const py = Math.round(y * cellSize) + 0.5;
+      ctx.moveTo(0, py); ctx.lineTo(cols * cellSize, py);
+    }
+    ctx.stroke();
+  }
+  
+  if (state.showNumbers && cellSize >= 14) {
+    ctx.textAlign = 'center'; 
+    ctx.textBaseline = 'middle';
+    const fs = Math.max(9, Math.floor(cellSize * 0.45)); 
+    ctx.font = `bold ${fs}px ui-sans-serif,system-ui,sans-serif`;
+    for (let y = 0; y < rows; y++) 
+      for (let x = 0; x < cols; x++) {
+        const ci = cells[y * cols + x]; 
+        if (ci < 0) continue;
+        const [r, g, b] = colors[ci].rgb, 
+              lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+        ctx.fillStyle = lum > 0.58 ? 'rgba(0,0,0,0.75)' : 'rgba(255,255,255,0.9)';
+        ctx.fillText(colors[ci].code, x * cellSize + cellSize / 2, y * cellSize + cellSize / 2 + 0.5);
+      }
+  }
+  
+  ctx.strokeStyle = '#000'; 
+  ctx.lineWidth = 2;
+  ctx.strokeRect(0, 0, cols * cellSize, rows * cellSize);
+  ctx.restore();
+  
+  ctx.save();
+  ctx.translate(pad, chartH);
+  
+  ctx.strokeStyle = '#ddd'; ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, 20); ctx.lineTo(totalW - pad*2, 20);
+  ctx.stroke();
+  
+  colors.forEach((c, i) => {
+    const row = Math.floor(i / legendCols);
+    const col = i % legendCols;
+    const x = col * legendItemW;
+    const y = 40 + row * legendItemH;
+    
+    ctx.fillStyle = c.hex;
+    ctx.fillRect(x, y, 16, 16);
+    ctx.strokeStyle = 'rgba(0,0,0,0.3)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(x + 0.5, y + 0.5, 15, 15);
+    
+    ctx.fillStyle = '#333';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.font = 'bold 13px ui-sans-serif,system-ui,sans-serif';
+    ctx.fillText(c.code, x + 24, y + 8);
+    
+    ctx.fillStyle = '#888';
+    ctx.font = '12px ui-sans-serif,system-ui,sans-serif';
+    ctx.fillText(`x${c.count}`, x + 54, y + 8);
+  });
+  
+  const totalBeads = cells.reduce((a, c) => a + (c >= 0 ? 1 : 0), 0);
+  ctx.fillStyle = '#666';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.font = '13px ui-sans-serif,system-ui,sans-serif';
+  ctx.fillText(`色号数: ${colors.length}  豆子数: ${totalBeads}  网格: ${cols}x${rows}`, 0, legendHeight - 10);
+  
+  ctx.restore();
+  
+  chartCanvas.style.display = 'block'; 
+  chartEmpty.style.display = 'none';
+}
+
+/* ===================== 导出 ===================== */
+function download(blob, filename){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href),3000);
+}
+$('dlPng').addEventListener('click',()=>{
+  if(!result)return;
+  chartCanvas.toBlob(blob=>download(blob,`拼豆图纸_${result.cols}x${result.rows}.png`),'image/png');
+});
+$('dlCsv').addEventListener('click',()=>{
+  if(!result)return;
+  const lines=['编号,色号,HEX,数量'];
+  result.colors.forEach(c=>lines.push([c.num,c.code,c.hex,c.count].join(',')));
+  const blob=new Blob(['\uFEFF'+lines.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  download(blob,`拼豆色卡清单_${result.cols}x${result.rows}.csv`);
+});
+
+/* ===================== 交互绑定 ===================== */
+let rafId=null;
+function scheduleProcess(){ if(rafId)cancelAnimationFrame(rafId); rafId=requestAnimationFrame(()=>{rafId=null;process();}); }
+const colsInput=$('colsInput'), rowsInput=$('rowsInput');
+
+colsInput.addEventListener('change',()=>{
+  const v=clamp(parseInt(colsInput.value)||20,2,200); colsInput.value=v; state.cols=v;
+  if(state.lockRatio&&state.img){state.rows=clamp(Math.round(v*state.img.naturalHeight/state.img.naturalWidth),2,200);rowsInput.value=state.rows;}
+  scheduleProcess();
+});
+rowsInput.addEventListener('change',()=>{
+  const v=clamp(parseInt(rowsInput.value)||20,2,200); rowsInput.value=v; state.rows=v;
+  if(state.lockRatio&&state.img){state.cols=clamp(Math.round(v*state.img.naturalWidth/state.img.naturalHeight),2,200);colsInput.value=state.cols;}
+  scheduleProcess();
+});
+$('sizeChips').addEventListener('click',e=>{
+  const btn=e.target.closest('button'); if(!btn)return;
+  const s=parseInt(btn.dataset.size);
+  state.cols=s; colsInput.value=s;
+  if(state.img){ state.rows=state.lockRatio?clamp(Math.round(s*state.img.naturalHeight/state.img.naturalWidth),2,200):s; }
+  else{ state.rows=s; }
+  rowsInput.value=state.rows;
+  [...$('sizeChips').children].forEach(b=>b.classList.toggle('on',b===btn));
+  scheduleProcess();
+});
+$('lockRatio').addEventListener('change',e=>{state.lockRatio=e.target.checked;});
+$('mode').addEventListener('change',e=>{state.mode=e.target.value;scheduleProcess();});
+$('maxColors').addEventListener('change',e=>{
+  state.maxColors=clamp(parseInt(e.target.value)||16,2,221);
+  e.target.value=state.maxColors;
+  scheduleProcess();
+});
+$('dither').addEventListener('change',e=>{state.dither=e.target.checked;scheduleProcess();});
+$('showNumbers').addEventListener('change',e=>{state.showNumbers=e.target.checked;if(result)renderChart();});
+$('boldGrid').addEventListener('change',e=>{state.boldGrid=parseInt(e.target.value);if(result)renderChart();});
+$('transparent').addEventListener('change',e=>{state.transparent=e.target.value;scheduleProcess();});
+window.addEventListener('resize',()=>{if(result)renderPreview();});
+$('maxColors').value=state.maxColors;
+</script>
+</body>
+</html>
